@@ -1,0 +1,72 @@
+package com.ejemplo.config;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.jdbc.DataSourceBuilder;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.sql.DataSource;
+import java.util.Map;
+
+@Configuration
+public class DatabaseConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(DatabaseConfig.class);
+
+    @Autowired
+    private VaultClient vaultClient;
+
+    @Bean
+    @Primary
+    public DataSource dataSource() {
+        log.info("🗄️ Configurando DataSource...");
+
+        try {
+            // Valores por defecto seguros
+            String url = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE";
+            String username = "sa";
+            String password = "password";
+            String driver = "org.h2.Driver";
+
+            // Intentar obtener desde Vault si está disponible
+            if (vaultClient.isVaultAvailable()) {
+                try {
+                    Map<String, String> dbSecrets = vaultClient.getSecrets("myapp/data/database");
+
+                    // Solo sobrescribir si los valores no son null
+                    if (dbSecrets.get("url") != null) url = dbSecrets.get("url");
+                    if (dbSecrets.get("username") != null) username = dbSecrets.get("username");
+                    if (dbSecrets.get("password") != null) password = dbSecrets.get("password");
+                    if (dbSecrets.get("driver") != null) driver = dbSecrets.get("driver");
+
+                    log.info("✅ Configuración de BD obtenida desde Vault");
+                } catch (Exception e) {
+                    log.warn("⚠️ Error obteniendo secretos de Vault, usando valores por defecto: {}", e.getMessage());
+                }
+            } else {
+                log.info("ℹ️ Vault no disponible, usando configuración por defecto");
+            }
+
+            log.info("🔧 URL de BD: {}", url);
+            log.info("🔧 Usuario de BD: {}", username);
+            log.info("🔧 Driver de BD: {}", driver);
+
+            DataSource dataSource = DataSourceBuilder.create()
+                    .url(url)
+                    .username(username)
+                    .password(password)
+                    .driverClassName(driver)
+                    .build();
+
+            log.info("✅ DataSource configurado exitosamente");
+            return dataSource;
+
+        } catch (Exception e) {
+            log.error("❌ Error al configurar DataSource", e);
+            throw new RuntimeException("Error al configurar DataSource", e);
+        }
+    }
+}

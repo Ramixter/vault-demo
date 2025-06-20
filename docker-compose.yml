@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  # Solo la aplicación Java
+  app:
+    build: .
+    container_name: vault-demo-app
+    network_mode: host  # Usa la red del host directamente
+    environment:
+      VAULT_ADDR: http://localhost:8200  # Ahora puede usar localhost
+      VAULT_TOKEN: ${VAULT_TOKEN:-dev-token}
+    restart: unless-stopped
